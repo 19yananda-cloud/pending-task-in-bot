@@ -14,31 +14,47 @@ class TaskBot:
     def __init__(self, data_file='tasks.json'):
         self.data_file = data_file
         self.tasks = self.load_tasks()
+        self.next_id = self._get_next_id()
     
     def load_tasks(self):
         """Load tasks from the JSON file"""
         if os.path.exists(self.data_file):
             try:
                 with open(self.data_file, 'r') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    # Support both old and new format
+                    if isinstance(data, list):
+                        return data
+                    return data.get('tasks', [])
             except json.JSONDecodeError:
                 return []
         return []
     
     def save_tasks(self):
         """Save tasks to the JSON file"""
+        data = {
+            'next_id': self.next_id,
+            'tasks': self.tasks
+        }
         with open(self.data_file, 'w') as f:
-            json.dump(self.tasks, f, indent=2)
+            json.dump(data, f, indent=2)
+    
+    def _get_next_id(self):
+        """Get the next available task ID"""
+        if not self.tasks:
+            return 1
+        return max(task['id'] for task in self.tasks) + 1
     
     def add_task(self, description):
         """Add a new task"""
         task = {
-            'id': len(self.tasks) + 1,
+            'id': self.next_id,
             'description': description,
             'completed': False,
             'created_at': datetime.now().isoformat()
         }
         self.tasks.append(task)
+        self.next_id += 1
         self.save_tasks()
         return f"Task added: {description} (ID: {task['id']})"
     
@@ -88,6 +104,8 @@ class TaskBot:
     def clear_completed(self):
         """Remove all completed tasks"""
         completed_count = sum(1 for task in self.tasks if task['completed'])
+        if completed_count == 0:
+            return "No completed tasks to remove."
         self.tasks = [task for task in self.tasks if not task['completed']]
         self.save_tasks()
         return f"Removed {completed_count} completed task(s)."
