@@ -13,8 +13,7 @@ class TaskBot:
     
     def __init__(self, data_file='tasks.json'):
         self.data_file = data_file
-        self.tasks = self.load_tasks()
-        self.next_id = self._get_next_id()
+        self.tasks, self.next_id = self.load_tasks()
     
     def load_tasks(self):
         """Load tasks from the JSON file"""
@@ -24,11 +23,16 @@ class TaskBot:
                     data = json.load(f)
                     # Support both old and new format
                     if isinstance(data, list):
-                        return data
-                    return data.get('tasks', [])
-            except json.JSONDecodeError:
-                return []
-        return []
+                        # Old format: just a list of tasks
+                        tasks = data
+                        # Calculate next_id from existing tasks
+                        next_id = max((task['id'] for task in tasks), default=0) + 1
+                        return tasks, next_id
+                    # New format: dict with next_id and tasks
+                    return data.get('tasks', []), data.get('next_id', 1)
+            except (json.JSONDecodeError, KeyError, ValueError):
+                return [], 1
+        return [], 1
     
     def save_tasks(self):
         """Save tasks to the JSON file"""
@@ -36,14 +40,21 @@ class TaskBot:
             'next_id': self.next_id,
             'tasks': self.tasks
         }
-        with open(self.data_file, 'w') as f:
-            json.dump(data, f, indent=2)
-    
-    def _get_next_id(self):
-        """Get the next available task ID"""
-        if not self.tasks:
-            return 1
-        return max(task['id'] for task in self.tasks) + 1
+        try:
+            # Write to a temporary file first
+            temp_file = self.data_file + '.tmp'
+            with open(temp_file, 'w') as f:
+                json.dump(data, f, indent=2)
+            # Atomic rename to avoid corruption
+            os.replace(temp_file, self.data_file)
+        except (IOError, OSError) as e:
+            # Clean up temp file if it exists
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except OSError:
+                    pass
+            raise Exception(f"Failed to save tasks: {e}")
     
     def add_task(self, description):
         """Add a new task"""
