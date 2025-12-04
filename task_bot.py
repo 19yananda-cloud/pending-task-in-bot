@@ -40,9 +40,9 @@ class TaskBot:
             'next_id': self.next_id,
             'tasks': self.tasks
         }
+        temp_file = self.data_file + '.tmp'
         try:
             # Write to a temporary file first
-            temp_file = self.data_file + '.tmp'
             with open(temp_file, 'w') as f:
                 json.dump(data, f, indent=2)
             # Atomic rename to avoid corruption
@@ -54,7 +54,7 @@ class TaskBot:
                     os.remove(temp_file)
                 except OSError:
                     pass
-            raise Exception(f"Failed to save tasks: {e}")
+            raise IOError(f"Failed to save tasks: {e}") from e
     
     def add_task(self, description):
         """Add a new task"""
